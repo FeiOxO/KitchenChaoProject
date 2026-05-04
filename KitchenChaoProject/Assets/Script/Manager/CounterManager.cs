@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -11,11 +12,11 @@ using UnityEngine.InputSystem;
 // 【两种模式】CounterManagerMode
 // - Create（创建）：可射线拾取区内柜台拖拽（Update）；可外部 BeginPlaceCounterFromExternal 拖临时体落地；
 //   松左键后 LateUpdate 会清空 selectedCounterForEdit（在 EndDrag 之后执行，不挡位姿写入）。
-// - Game（游戏）：不走上述创建拖拽逻辑；可用 gameplaySpawnCache + LoadCountersFromGameplayCache 批量生成
-//   （一般由 GameManager 切场景时 SetMode，具体由项目流程调用缓存/加载 API）。
+// - Game（游戏）：不走上述创建拖拽逻辑；柜台来自 CounterJson 持久化（见私有 LoadCountersFromPersistentJsonForCurrentScene）。
+//   gameplaySpawnCache 与 CacheCurrentCountersToGameplayCache / LoadCountersFromGameplayCache 为内存快照重生（当前未接线，可按需在类内调用）。
 //
 // 【数据】
-// - counters：当前登记在管理器下的柜台实例列表；SpawnCounter 会 Instantiate、BindSpawnSourcePrefab、加入列表。
+// - counters：当前登记在管理器下的柜台实例列表；内部 SpawnCounter 会 Instantiate、BindSpawnSourcePrefab、加入列表。
 // - spawnLayout：关卡布局表；spawnOnStart 时 SpawnFromLayout 读取它生成实例。编辑柜台后由 RebuildSpawnLayoutFromCounters
 //   根据当前 counters 回写（与场景内实例一致）；批量 SpawnFromLayout 时用 _suppressSpawnLayoutSync 避免 foreach 中改表。
 // - gameplaySpawnCache：游戏用布局快照（内存）；持久化布局见 CounterJson（编辑器：Assets/CounterLayouts；正式包：persistentDataPath/CounterLayouts）+ SceneNN.json。
@@ -73,6 +74,11 @@ public class CounterManager : MonoBehaviour
     [Tooltip("进入游戏模式时用于生成柜台的缓存数据（可由 CacheCurrentCountersToGameplayCache 填充）。")]
     [SerializeField] private List<CounterSpawnEntry> gameplaySpawnCache = new List<CounterSpawnEntry>();
 
+
+    [Header("加载数据文件栏")]
+    [Tooltip("若赋值：开始与保存后会刷新列表；选项文案为 SceneNN（无 .json），加载时自动补全扩展名。")]
+    [SerializeField] private TMP_Dropdown dropdown;
+
     [Header("JSON 持久化：counterId 与预制体（1=Clear … 6=Trash，顺序固定）")]
     [Tooltip("下标 0 → counterId 1 ClearCounter；…；下标 5 → counterId 6 TrashCounter。保存/加载 JSON 依赖此映射。")]
     [SerializeField] private BaseCounter[] counterPrefabsByCounterId = new BaseCounter[6];
@@ -100,6 +106,18 @@ public class CounterManager : MonoBehaviour
         }
 
         Instance = this;
+    }
+
+    private void Start()
+    {
+        RefreshCounterLayoutDropdownIfAssigned();
+    }
+
+    /// <summary>当已绑定 <c>dropdown</c> 时刷新 CounterLayouts 文件名列表。</summary>
+    private void RefreshCounterLayoutDropdownIfAssigned()
+    {
+        if (dropdown != null)
+            PopulateCounterLayoutDropdownOptions();
     }
 
     // --- 创建模式：左键按下射线 → 区内柜台开始拖拽（交给 BaseCounterControl） ----------------
@@ -258,35 +276,102 @@ public class CounterManager : MonoBehaviour
         CounterLayoutJsonRoot root = BuildJsonRootFromSpawnLayout();
         string fileName = GetCurrentSceneLayoutFileName();
         if (CounterJson.SaveLayout(fileName, root))
+        {
             Debug.Log($"柜台布局已保存: {Path.Combine(CounterJson.GetLayoutDirectoryPath(false), fileName)}");
-    }
-
-    /// <summary>CounterLayouts 目录下是否已有至少一个 SceneNN.json（供 UI 显示/灰显）。</summary>
-    public bool HasSavedLayoutFileForCurrentScene()
-    {
-        return CounterJson.CountSceneLayoutJsonFiles() > 0;
-    }
-
-    /// <summary>布局 JSON 根目录（编辑器为项目内 Assets/CounterLayouts；正式包为 persistentDataPath/CounterLayouts）。</summary>
-    public static string GetCounterLayoutDirectory()
-    {
-        return CounterJson.GetLayoutDirectoryPath(false);
+            RefreshCounterLayoutDropdownIfAssigned();
+        }
     }
 
     /// <summary>
     /// 下一次保存应使用的 JSON 文件名：<c>Scene(当前 CounterLayouts 下符合 SceneNN.json 规则的文件数量 + 1).json</c>。
     /// 例如目录为空 → Scene01；已有 Scene01.json → Scene02。
     /// </summary>
-    public string GetCurrentSceneLayoutFileName()
+    private string GetCurrentSceneLayoutFileName()
     {
         return CounterJson.GetNextSceneLayoutFileName();
     }
 
     /// <summary>
-    /// 游戏模式：从 CounterJson 布局目录读取 SceneNN.json 并生成柜台。
+    /// 扫描 CounterLayouts 中 SceneNN.json，按编号升序填入 <c>dropdown</c>；选项文案为 <c>SceneNN</c>（不含 <c>.json</c>），读盘时由 <see cref="CounterJson.ToSceneLayoutFileNameWithJsonExtension"/> 补扩展名。
+    /// 由 <see cref="Start"/> 与保存布局成功后通过 <see cref="RefreshCounterLayoutDropdownIfAssigned"/> 调用。
+    /// </summary>
+    private void PopulateCounterLayoutDropdownOptions()
+    {
+        if (dropdown == null)
+        {
+            Debug.LogWarning("CounterManager.PopulateCounterLayoutDropdownOptions: TMP_Dropdown 为空。");
+            return;
+        }
+
+        List<string> names = CounterJson.GetSceneLayoutFileNamesSorted();
+        dropdown.ClearOptions();
+        var options = new List<TMP_Dropdown.OptionData>(names.Count);
+        foreach (string fileName in names)
+            options.Add(new TMP_Dropdown.OptionData(Path.GetFileNameWithoutExtension(fileName)));
+
+        dropdown.AddOptions(options);
+        if (names.Count > 0)
+        {
+            dropdown.value = 0;
+            dropdown.RefreshShownValue();
+        }
+    }
+
+    /// <summary>
+    /// 读取指定 <paramref name="dropdown"/> 选中项对应的布局 JSON 数据（不生成柜台）。
+    /// </summary>
+    private bool TryReadSelectedCounterLayoutFromDropdown(TMP_Dropdown dropdown, out CounterLayoutJsonRoot root)
+    {
+        root = null;
+
+        if (dropdown == null || dropdown.options == null || dropdown.options.Count == 0)
+            return false;
+
+        int index = dropdown.value;
+        if (index < 0 || index >= dropdown.options.Count)
+            return false;
+
+        string optionText = dropdown.options[index].text;
+        if (string.IsNullOrWhiteSpace(optionText))
+            return false;
+
+        string fileName = CounterJson.ToSceneLayoutFileNameWithJsonExtension(optionText);
+        return CounterJson.TryLoadLayout(fileName, out root);
+    }
+
+    /// <summary>使用已序列化的 <c>dropdown</c> 读取当前选中项的布局 JSON（不生成柜台）。</summary>
+    private bool TryReadSelectedCounterLayoutFromDropdown(out CounterLayoutJsonRoot root)
+    {
+        return TryReadSelectedCounterLayoutFromDropdown(dropdown, out root);
+    }
+
+    /// <summary>
+    /// 供 UI Button：先清空已登记柜台，再按 Inspector 绑定的 <c>dropdown</c> 当前选中文件名加载 JSON 并生成柜台。
+    /// </summary>
+    /// <returns>是否成功（dropdown 已赋值且文件可读）。</returns>
+    public void UIButtonLoadCountersFromSelectedDropdown()
+    {
+        if (dropdown == null)
+        {
+            Debug.LogWarning("CounterManager.UIButtonLoadCountersFromSelectedDropdown: dropdown 未赋值。");
+            return;
+        }
+
+        if (!TryReadSelectedCounterLayoutFromDropdown(dropdown, out CounterLayoutJsonRoot root))
+        {
+            Debug.LogWarning("CounterManager: 无法读取下拉框当前选中项对应的布局文件。");
+            return;
+        }
+
+        ClearSpawnedCounters();
+        ApplyCounterLayoutJsonRoot(root);
+    }
+
+    /// <summary>
+    /// 游戏模式：从 CounterJson 布局目录读取编号最大的 SceneNN.json 并生成柜台。
     /// </summary>
     /// <param name="clearExistingFirst">为 true 时先清空列表并销毁已有柜台（一般已由 RefreshCountersForCurrentMode 处理）。</param>
-    public void LoadCountersFromPersistentJsonForCurrentScene(bool clearExistingFirst = true)
+    private void LoadCountersFromPersistentJsonForCurrentScene(bool clearExistingFirst = true)
     {
         if (clearExistingFirst)
             ClearSpawnedCounters();
@@ -298,6 +383,14 @@ public class CounterManager : MonoBehaviour
                 $"CounterManager 游戏模式：CounterLayouts 下没有可加载的 SceneNN.json。请先在建关场景保存布局（Button 调用 UIButtonSaveCurrentCounterLayoutToJson）。目录：{CounterJson.GetLayoutDirectoryPath(false)}");
             return;
         }
+
+        ApplyCounterLayoutJsonRoot(root);
+    }
+
+    private void ApplyCounterLayoutJsonRoot(CounterLayoutJsonRoot root)
+    {
+        if (root == null || root.entries == null)
+            return;
 
         _suppressSpawnLayoutSync = true;
         try
@@ -389,9 +482,9 @@ public class CounterManager : MonoBehaviour
     // --- 游戏模式：缓存当前布局 → 按缓存重生 ----------------------------------------
 
     /// <summary>
-    /// 将当前 counters 中的柜台快照写入 gameplaySpawnCache（需柜台由 SpawnCounter 生成并绑定了源预制体）。
+    /// 将当前 counters 中的柜台快照写入 gameplaySpawnCache（需柜台由生成流程绑定源预制体）。
     /// </summary>
-    public void CacheCurrentCountersToGameplayCache()
+    private void CacheCurrentCountersToGameplayCache()
     {
         gameplaySpawnCache.Clear();
         foreach (BaseCounter c in counters)
@@ -418,7 +511,7 @@ public class CounterManager : MonoBehaviour
     /// <summary>
     /// 游戏模式：清空当前柜台列表并依据 gameplaySpawnCache 重新生成。
     /// </summary>
-    public void LoadCountersFromGameplayCache()
+    private void LoadCountersFromGameplayCache()
     {
         _suppressSpawnLayoutSync = true;
         try
@@ -447,7 +540,7 @@ public class CounterManager : MonoBehaviour
         selectedCounterForEdit = counter;
     }
 
-    public void ClearSelectedCounterForEdit()
+    private void ClearSelectedCounterForEdit()
     {
         selectedCounterForEdit = null;
     }
@@ -488,7 +581,7 @@ public class CounterManager : MonoBehaviour
 
     // --- 创建区 / 放下点是否在「本管理器」编辑范围内 --------------------------------------
 
-    public bool IsWorldPositionInCreateZone(Vector3 worldPosition)
+    private bool IsWorldPositionInCreateZone(Vector3 worldPosition)
     {
         if (createModeZoneTrigger == null)
             return false;
@@ -545,7 +638,7 @@ public class CounterManager : MonoBehaviour
     // --- 生成、注册与列表维护 --------------------------------------------------------
 
     /// <returns>生成出的实例；prefab 为空时返回 null。</returns>
-    public BaseCounter SpawnCounter(BaseCounter prefab, Vector3 worldPosition, Quaternion rotation)
+    private BaseCounter SpawnCounter(BaseCounter prefab, Vector3 worldPosition, Quaternion rotation)
     {
         if (prefab == null)
         {
@@ -564,26 +657,12 @@ public class CounterManager : MonoBehaviour
     /// <summary>
     /// <see cref="SpawnCounter(BaseCounter, Vector3, Quaternion)"/> 的重载：用欧拉角表示世界旋转。
     /// </summary>
-    public BaseCounter SpawnCounter(BaseCounter prefab, Vector3 worldPosition, Vector3 eulerAngles)
+    private BaseCounter SpawnCounter(BaseCounter prefab, Vector3 worldPosition, Vector3 eulerAngles)
     {
         return SpawnCounter(prefab, worldPosition, Quaternion.Euler(eulerAngles));
     }
 
-    /// <summary>
-    /// 在目标 Transform 的世界坐标与旋转处生成柜台，内部仍调用 <see cref="SpawnCounter(BaseCounter, Vector3, Quaternion)"/>。
-    /// </summary>
-    public BaseCounter SpawnCounterAtTransform(BaseCounter prefab, Transform target)
-    {
-        if (target == null)
-        {
-            Debug.LogWarning("CounterManager: target Transform 为空，无法生成。");
-            return null;
-        }
-
-        return SpawnCounter(prefab, target.position, target.rotation);
-    }
-
-    public void SpawnFromLayout()
+    private void SpawnFromLayout()
     {
         _suppressSpawnLayoutSync = true;
         try
@@ -604,7 +683,7 @@ public class CounterManager : MonoBehaviour
         RebuildSpawnLayoutFromCountersCore();
     }
 
-    public void RegisterCounter(BaseCounter counter)
+    private void RegisterCounter(BaseCounter counter)
     {
         if (counter == null || counters.Contains(counter))
             return;
@@ -613,7 +692,7 @@ public class CounterManager : MonoBehaviour
         TryRebuildSpawnLayoutFromCounters();
     }
 
-    public bool UnregisterCounter(BaseCounter counter)
+    private bool UnregisterCounter(BaseCounter counter)
     {
         if (counter == null)
             return false;
@@ -625,7 +704,7 @@ public class CounterManager : MonoBehaviour
         return removed;
     }
 
-    public void ClearSpawnedCounters()
+    private void ClearSpawnedCounters()
     {
         for (int i = counters.Count - 1; i >= 0; i--)
         {

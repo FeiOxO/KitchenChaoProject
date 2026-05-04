@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text.RegularExpressions;
@@ -77,6 +78,21 @@ public static class CounterJson
             Debug.LogError($"CounterJson.SaveLayout 失败: {e.Message}");
             return false;
         }
+    }
+
+    /// <summary>
+    /// 将 UI 中的「Scene01」等形式规范为磁盘文件名 <c>Scene01.json</c>；已带 <c>.json</c> 时原样返回（忽略大小写）。
+    /// </summary>
+    public static string ToSceneLayoutFileNameWithJsonExtension(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return name;
+
+        string t = name.Trim();
+        if (t.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+            return t;
+
+        return t + ".json";
     }
 
     /// <summary>从当前平台布局目录读取 <paramref name="fileName"/>。</summary>
@@ -161,5 +177,40 @@ public static class CounterJson
         int n = CountSceneLayoutJsonFiles() + 1;
         n = Mathf.Clamp(n, 1, 99);
         return $"Scene{n:D2}.json";
+    }
+
+    /// <summary>布局目录下所有 SceneNN.json 文件名，按编号升序（供 TMP_Dropdown 等使用）。</summary>
+    public static List<string> GetSceneLayoutFileNamesSorted()
+    {
+        var result = new List<string>();
+        string dir = GetLayoutDirectoryPath(false);
+        if (!Directory.Exists(dir))
+            return result;
+
+        foreach (string path in Directory.GetFiles(dir, "*.json"))
+        {
+            string fn = Path.GetFileName(path);
+            if (SceneLayoutFileNameRegex.IsMatch(fn))
+                result.Add(fn);
+        }
+
+        result.Sort(CompareSceneFileNames);
+        return result;
+    }
+
+    private static int CompareSceneFileNames(string a, string b)
+    {
+        int na = ParseSceneNumberFromFileName(a);
+        int nb = ParseSceneNumberFromFileName(b);
+        return na.CompareTo(nb);
+    }
+
+    private static int ParseSceneNumberFromFileName(string fileName)
+    {
+        Match m = SceneLayoutFileNameRegex.Match(fileName);
+        if (!m.Success)
+            return 0;
+
+        return int.Parse(m.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture);
     }
 }
