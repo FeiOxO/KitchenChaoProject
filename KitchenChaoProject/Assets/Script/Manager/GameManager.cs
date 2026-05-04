@@ -29,6 +29,13 @@ public class GameManager : MonoBehaviour
     #endregion
 
     private const string CreateSceneName = "99-CreateScene";
+
+    [Header("CounterManager 模式")]
+    [Tooltip("关闭：按场景名默认规则（见 ApplyCounterManagerModeForScene）。开启：始终使用下方「自定义模式」，忽略场景名。")]
+    [SerializeField] private bool useCustomCounterManagerMode;
+    [Tooltip("仅在「使用自定义 CounterManager 模式」开启时生效。")]
+    [SerializeField] private CounterManagerMode customCounterManagerMode = CounterManagerMode.Game;
+
     public event EventHandler OnStateChanged;
     public event EventHandler OnGamePaused;
     public event EventHandler OnGameUnpaused;
@@ -63,17 +70,29 @@ public class GameManager : MonoBehaviour
         ApplyCounterManagerModeForScene(scene);
     }
 
-    private static void ApplyCounterManagerModeForScene(Scene _)
+    /// <summary>
+    /// 场景加载后设置 <see cref="CounterManager"/> 模式并刷新柜台。
+    /// <list type="bullet">
+    /// <item><description><c>useCustomCounterManagerMode == false</c>（默认）：当前场景名为 <c>99-CreateScene</c> → Create，否则 → Game。</description></item>
+    /// <item><description><c>useCustomCounterManagerMode == true</c>：使用 Inspector 中的 <c>customCounterManagerMode</c>。</description></item>
+    /// </list>
+    /// </summary>
+    private void ApplyCounterManagerModeForScene(Scene _)
     {
         CounterManager manager = FindObjectOfType<CounterManager>();
         if (manager == null)
             return;
 
-        string currentSceneName = SceneManager.GetActiveScene().name;
-        if (currentSceneName == CreateSceneName)
-            manager.SetMode(CounterManagerMode.Create);
+        if (useCustomCounterManagerMode)
+            manager.SetMode(customCounterManagerMode);
         else
-            manager.SetMode(CounterManagerMode.Game);
+        {
+            string currentSceneName = SceneManager.GetActiveScene().name;
+            if (currentSceneName == CreateSceneName)
+                manager.SetMode(CounterManagerMode.Create);
+            else
+                manager.SetMode(CounterManagerMode.Game);
+        }
 
         manager.RefreshCountersForCurrentMode();
     }
