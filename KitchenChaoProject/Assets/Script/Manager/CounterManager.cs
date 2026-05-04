@@ -2,6 +2,35 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+// =============================================================================
+// CounterManager — 大致逻辑说明
+// =============================================================================
+// 【单例】场景中通常只有一个；Instance 供 BaseCounterControl、GameManager 等访问。
+//
+// 【两种模式】CounterManagerMode
+// - Create（创建）：可射线拾取区内柜台拖拽（Update）；可外部 BeginPlaceCounterFromExternal 拖临时体落地；
+//   松左键后 LateUpdate 会清空 selectedCounterForEdit（在 EndDrag 之后执行，不挡位姿写入）。
+// - Game（游戏）：不走上述创建拖拽逻辑；可用 gameplaySpawnCache + LoadCountersFromGameplayCache 批量生成
+//   （一般由 GameManager 切场景时 SetMode，具体由项目流程调用缓存/加载 API）。
+//
+// 【数据】
+// - counters：当前登记在管理器下的柜台实例列表；SpawnCounter 会 Instantiate、BindSpawnSourcePrefab、加入列表。
+// - spawnLayout：关卡布局表；spawnOnStart 时 SpawnFromLayout 读取它生成实例。编辑柜台后由 RebuildSpawnLayoutFromCounters
+//   根据当前 counters 回写（与场景内实例一致）；批量 SpawnFromLayout 时用 _suppressSpawnLayoutSync 避免 foreach 中改表。
+// - gameplaySpawnCache：游戏用布局快照，由 CacheCurrentCountersToGameplayCache 从 counters 填充。
+// - selectedCounterForEdit：区内拖拽时「当前编辑目标」，供 UpdateSelectedCounterPose 使用。
+//
+// 【创建区与放下检测】
+// - createModeZoneTrigger：用于 IsWorldPositionInCreateZone / TryGetCounterManagerNearPoint 的 bounds.Contains，
+//   与「射线能否开始区内拖拽」一致；务必在 Inspector 赋值。
+// - TryGetCounterManagerNearPoint：先 Contains 创建区，再 OverlapSphere 兜底，避免仅靠物理层扫不到 Trigger。
+//
+// 【与 BaseCounterControl 的时序】
+// - Update：左键按下 + 非拖拽中 → 射线命中带 BaseCounterControl 的 BaseCounter 且在区内 → BeginInZoneDrag。
+// - NotifyExternalPlaceDragStarted：外部生成当帧屏蔽一次射线拾取，避免误开第二次拖拽。
+// =============================================================================
+
+/// <summary>一条「预制体 + 世界坐标位姿」的生成/缓存记录。</summary>
 [System.Serializable]
 public class CounterSpawnEntry
 {
@@ -10,12 +39,16 @@ public class CounterSpawnEntry
     public Vector3 eulerAngles;
 }
 
+/// <summary>创建 = 关卡编辑式摆柜台；游戏 = 运行时用缓存布局生成。</summary>
 public enum CounterManagerMode
 {
     Create,
     Game
 }
 
+/// <summary>
+/// 柜台单例管理：模式切换、列表与生成、创建区检测、与 BaseCounterControl 协同的射线拾取与选中状态。
+/// </summary>
 public class CounterManager : MonoBehaviour
 {
     public static CounterManager Instance { get; private set; }
@@ -31,9 +64,9 @@ public class CounterManager : MonoBehaviour
     [SerializeField] private LayerMask releaseCheckLayers = ~0;
 
     [SerializeField] private List<BaseCounter> counters = new List<BaseCounter>();
-    [Tooltip("在 Inspector 中配置每个柜台的预制体与世界坐标，可调用 SpawnFromLayout 或勾选 Spawn On Start 批量生成。")]
+    [Tooltip("关卡布局：预制体 + 位姿。SpawnFromLayout 会读取；生成/移动/删除柜台后也会按当前 counters 自动回写。")]
     [SerializeField] private List<CounterSpawnEntry> spawnLayout = new List<CounterSpawnEntry>();
-    [SerializeField] private bool spawnOnStart;
+    [SerializeField] private bool spawnOnStart = true;
 
     [Header("游戏模式缓存")]
     [Tooltip("进入游戏模式时用于生成柜台的缓存数据（可由 CacheCurrentCountersToGameplayCache 填充）。")]
@@ -44,9 +77,14 @@ public class CounterManager : MonoBehaviour
 
     private int _blockInZonePickUntilFrame = -1;
 
+    /// <summary>为 true 时不在 SpawnCounter 等路径里回写 spawnLayout，避免 SpawnFromLayout 的 foreach 与改表冲突。</summary>
+    private bool _suppressSpawnLayoutSync;
+
     public CounterManagerMode CurrentMode => currentMode;
     public IReadOnlyList<BaseCounter> Counters => counters;
     public BaseCounter SelectedCounterForEdit => selectedCounterForEdit;
+
+    // --- 生命周期与单例 ----------------------------------------------------------
 
     private void Awake()
     {
@@ -59,17 +97,13 @@ public class CounterManager : MonoBehaviour
         Instance = this;
     }
 
-    private void OnDestroy()
-    {
-        if (Instance == this)
-            Instance = null;
-    }
-
     private void Start()
     {
         if (spawnOnStart)
             SpawnFromLayout();
     }
+
+    // --- 创建模式：左键按下射线 → 区内柜台开始拖拽（交给 BaseCounterControl） ----------------
 
     private void Update()
     {
@@ -89,8 +123,7 @@ public class CounterManager : MonoBehaviour
             return;
 
         Ray ray = Camera.main.ScreenPointToRay(Mouse.current.position.ReadValue());
-        if (!Physics.Raycast(ray, out RaycastHit hit, counterPickRayDistance, counterPickLayers,
-                QueryTriggerInteraction.Ignore))
+        if (!Physics.Raycast(ray, out RaycastHit hit, counterPickRayDistance, counterPickLayers, QueryTriggerInteraction.Ignore))
             return;
 
         BaseCounter bc = hit.collider.GetComponentInParent<BaseCounter>();
@@ -107,6 +140,8 @@ public class CounterManager : MonoBehaviour
         control.BeginInZoneDrag();
     }
 
+    // --- 创建模式：左键松开后先提交选中柜台（挂点 + 列表），再清空 selected（在 EndDrag 的 LateUpdate 之后） ---
+
     private void LateUpdate()
     {
         if (currentMode != CounterManagerMode.Create)
@@ -116,8 +151,69 @@ public class CounterManager : MonoBehaviour
             return;
 
         if (Mouse.current.leftButton.wasReleasedThisFrame)
+        {
+            CommitSelectedCounterFromEdit();
             ClearSelectedCounterForEdit();
+        }
     }
+
+    /// <summary>
+    /// 左键松开、清空选中前：用当前 selectedCounterForEdit 做一次「归属与列表」提交——
+    /// 重新挂到本管理器节点下（与 SpawnCounter 一致），若尚未在 counters 中则 RegisterCounter 添加；
+    /// 最后按 counters 回写 spawnLayout，使 Inspector 中的布局数据与场景一致。
+    /// </summary>
+    private void CommitSelectedCounterFromEdit()
+    {
+        if (selectedCounterForEdit == null)
+            return;
+
+        BaseCounter c = selectedCounterForEdit;
+        if (c == null)
+            return;
+
+        if (c.transform.parent != transform)
+            c.transform.SetParent(transform, true);
+
+        if (!counters.Contains(c))
+            RegisterCounter(c);
+        else
+            TryRebuildSpawnLayoutFromCounters();
+    }
+
+    /// <summary>用当前 counters 覆盖 spawnLayout（需柜台已 BindSpawnSourcePrefab）。</summary>
+    private void RebuildSpawnLayoutFromCountersCore()
+    {
+        spawnLayout.Clear();
+        foreach (BaseCounter c in counters)
+        {
+            if (c == null)
+                continue;
+
+            BaseCounter prefab = c.GetSpawnSourcePrefab();
+            if (prefab == null)
+            {
+                Debug.LogWarning($"CounterManager: 柜台 {c.name} 无源预制体，已跳过写入 spawnLayout。");
+                continue;
+            }
+
+            spawnLayout.Add(new CounterSpawnEntry
+            {
+                prefab = prefab,
+                position = c.transform.position,
+                eulerAngles = c.transform.eulerAngles
+            });
+        }
+    }
+
+    private void TryRebuildSpawnLayoutFromCounters()
+    {
+        if (_suppressSpawnLayoutSync)
+            return;
+
+        RebuildSpawnLayoutFromCountersCore();
+    }
+
+    // --- 模式 ----------------------------------------------------------------
 
     public void SetMode(CounterManagerMode mode)
     {
@@ -133,6 +229,8 @@ public class CounterManager : MonoBehaviour
     {
         return currentMode == CounterManagerMode.Game;
     }
+
+    // --- 游戏模式：缓存当前布局 → 按缓存重生 ----------------------------------------
 
     /// <summary>
     /// 将当前 counters 中的柜台快照写入 gameplaySpawnCache（需柜台由 SpawnCounter 生成并绑定了源预制体）。
@@ -166,15 +264,27 @@ public class CounterManager : MonoBehaviour
     /// </summary>
     public void LoadCountersFromGameplayCache()
     {
-        ClearSpawnedCounters();
-        foreach (CounterSpawnEntry entry in gameplaySpawnCache)
+        _suppressSpawnLayoutSync = true;
+        try
         {
-            if (entry == null || entry.prefab == null)
-                continue;
+            ClearSpawnedCounters();
+            foreach (CounterSpawnEntry entry in gameplaySpawnCache)
+            {
+                if (entry == null || entry.prefab == null)
+                    continue;
 
-            SpawnCounter(entry.prefab, entry.position, entry.eulerAngles);
+                SpawnCounter(entry.prefab, entry.position, entry.eulerAngles);
+            }
         }
+        finally
+        {
+            _suppressSpawnLayoutSync = false;
+        }
+
+        RebuildSpawnLayoutFromCountersCore();
     }
+
+    // --- 创建模式：当前编辑目标与位姿写入 ----------------------------------------------
 
     public void SetSelectedCounterForEdit(BaseCounter counter)
     {
@@ -187,6 +297,14 @@ public class CounterManager : MonoBehaviour
     }
 
     /// <summary>
+    /// 创建模式情况1：在有效区域放下时，用预制体在指定位置生成并登记（用于从临时拖拽物落地）。
+    /// </summary>
+    public BaseCounter AddCounterAtPose(BaseCounter prefab, Vector3 worldPosition, Quaternion worldRotation)
+    {
+        return SpawnCounter(prefab, worldPosition, worldRotation);
+    }
+
+    /// <summary>
     /// 创建模式情况2：放下时更新当前选中柜台的位置与旋转。
     /// </summary>
     public void UpdateSelectedCounterPose(Vector3 worldPosition, Quaternion worldRotation)
@@ -195,14 +313,6 @@ public class CounterManager : MonoBehaviour
             return;
 
         selectedCounterForEdit.transform.SetPositionAndRotation(worldPosition, worldRotation);
-    }
-
-    /// <summary>
-    /// 创建模式情况1：在有效区域放下时，用预制体在指定位置生成并登记（用于从临时拖拽物落地）。
-    /// </summary>
-    public BaseCounter AddCounterAtPose(BaseCounter prefab, Vector3 worldPosition, Quaternion worldRotation)
-    {
-        return SpawnCounter(prefab, worldPosition, worldRotation);
     }
 
     /// <summary>
@@ -220,6 +330,8 @@ public class CounterManager : MonoBehaviour
         Destroy(counter.gameObject);
     }
 
+    // --- 创建区 / 放下点是否在「本管理器」编辑范围内 --------------------------------------
+
     public bool IsWorldPositionInCreateZone(Vector3 worldPosition)
     {
         if (createModeZoneTrigger == null)
@@ -229,17 +341,35 @@ public class CounterManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 检测某世界坐标附近是否存在带 CounterManager 的碰撞体（可在子物体上挂 Collider）。
+    /// 检测放下点是否仍属于本 CounterManager 的编辑范围：
+    /// 优先使用与拾取相同的「创建区域」Trigger 的 bounds（避免仅依赖 OverlapSphere 时层矩阵/触发器未被扫到）；
+    /// 再退回 OverlapSphere 查找带 CounterManager 的碰撞体。
     /// </summary>
-    public bool TryGetCounterManagerNearPoint(Vector3 worldPosition, out CounterManager manager)
+    /// <param name="excludeOverlapFromCounter">
+    /// 拖拽中的柜台实例。OverlapSphere 会扫到其自身碰撞体；若柜台挂在 CounterManager 下，
+    /// 若不忽略则会误把「自己身上的 Collider」当成编辑区命中，导致 hasManager 恒为 true。传 null 则不忽略。
+    /// </param>
+    public bool TryGetCounterManagerNearPoint(Vector3 worldPosition, out CounterManager manager,
+        BaseCounter excludeOverlapFromCounter = null)
     {
         manager = null;
+
+        if (createModeZoneTrigger != null && createModeZoneTrigger.bounds.Contains(worldPosition))
+        {
+            manager = this;
+            return true;
+        }
+
         Collider[] cols = Physics.OverlapSphere(worldPosition, releaseOverlapRadius, releaseCheckLayers,
             QueryTriggerInteraction.Collide);
         foreach (Collider col in cols)
         {
+            if (excludeOverlapFromCounter != null &&
+                col.GetComponentInParent<BaseCounter>() == excludeOverlapFromCounter)
+                continue;
+
             CounterManager m = col.GetComponentInParent<CounterManager>();
-            if (m != null)
+            if (m != null && m == this)
             {
                 manager = m;
                 return true;
@@ -249,11 +379,16 @@ public class CounterManager : MonoBehaviour
         return false;
     }
 
+    // --- 与 BaseCounterControl 的防冲突 ------------------------------------------------
+
     internal void NotifyExternalPlaceDragStarted()
     {
         _blockInZonePickUntilFrame = Time.frameCount + 1;
     }
 
+    // --- 生成、注册与列表维护 --------------------------------------------------------
+
+    /// <returns>生成出的实例；prefab 为空时返回 null。</returns>
     public BaseCounter SpawnCounter(BaseCounter prefab, Vector3 worldPosition, Quaternion rotation)
     {
         if (prefab == null)
@@ -262,17 +397,25 @@ public class CounterManager : MonoBehaviour
             return null;
         }
 
+        // 实例挂到管理器下，便于统一销毁与层级管理。
         BaseCounter instance = Instantiate(prefab, worldPosition, rotation, transform);
         instance.BindSpawnSourcePrefab(prefab);
         counters.Add(instance);
+        TryRebuildSpawnLayoutFromCounters();
         return instance;
     }
 
+    /// <summary>
+    /// <see cref="SpawnCounter(BaseCounter, Vector3, Quaternion)"/> 的重载：用欧拉角表示世界旋转。
+    /// </summary>
     public BaseCounter SpawnCounter(BaseCounter prefab, Vector3 worldPosition, Vector3 eulerAngles)
     {
         return SpawnCounter(prefab, worldPosition, Quaternion.Euler(eulerAngles));
     }
 
+    /// <summary>
+    /// 在目标 Transform 的世界坐标与旋转处生成柜台，内部仍调用 <see cref="SpawnCounter(BaseCounter, Vector3, Quaternion)"/>。
+    /// </summary>
     public BaseCounter SpawnCounterAtTransform(BaseCounter prefab, Transform target)
     {
         if (target == null)
@@ -286,13 +429,23 @@ public class CounterManager : MonoBehaviour
 
     public void SpawnFromLayout()
     {
-        foreach (CounterSpawnEntry entry in spawnLayout)
+        _suppressSpawnLayoutSync = true;
+        try
         {
-            if (entry == null || entry.prefab == null)
-                continue;
+            foreach (CounterSpawnEntry entry in spawnLayout)
+            {
+                if (entry == null || entry.prefab == null)
+                    continue;
 
-            SpawnCounter(entry.prefab, entry.position, entry.eulerAngles);
+                SpawnCounter(entry.prefab, entry.position, entry.eulerAngles);
+            }
         }
+        finally
+        {
+            _suppressSpawnLayoutSync = false;
+        }
+
+        RebuildSpawnLayoutFromCountersCore();
     }
 
     public void RegisterCounter(BaseCounter counter)
@@ -301,11 +454,19 @@ public class CounterManager : MonoBehaviour
             return;
 
         counters.Add(counter);
+        TryRebuildSpawnLayoutFromCounters();
     }
 
     public bool UnregisterCounter(BaseCounter counter)
     {
-        return counter != null && counters.Remove(counter);
+        if (counter == null)
+            return false;
+
+        bool removed = counters.Remove(counter);
+        if (removed)
+            TryRebuildSpawnLayoutFromCounters();
+
+        return removed;
     }
 
     public void ClearSpawnedCounters()
@@ -318,7 +479,10 @@ public class CounterManager : MonoBehaviour
 
         counters.Clear();
         selectedCounterForEdit = null;
+        TryRebuildSpawnLayoutFromCounters();
     }
+
+    // --- 外部入口：从 UI 等发起「临时体 → 拖入编辑区落地」----------------------------------
 
     /// <summary>
     /// 由外部事件调用：在创建模式下生成一个临时柜台并进入「范围外放置」拖拽流程（情况1）。
@@ -348,6 +512,7 @@ public class CounterManager : MonoBehaviour
         return ghost;
     }
 
+    /// <summary>屏幕射线与 Y=planeY 水平面相交，用于把新生成物体摆在鼠标下。</summary>
     private static Vector3 GetMouseOnPlaneWorldPosition(float planeY)
     {
         Ray ray = Camera.main.ScreenPointToRay(Mouse.current.position.ReadValue());
