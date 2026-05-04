@@ -9,9 +9,10 @@ using UnityEngine.InputSystem;
 // =============================================================================
 // 【单例】场景中通常只有一个；Instance 供 BaseCounterControl、GameManager 等访问。
 //
-// 【两种模式】CounterManagerMode —— 运行时由 GameManager 决定，勿在其它脚本随意 SetMode（除非你有意覆盖关卡流程）。
-// - GameManager：SceneManager.sceneLoaded → ApplyCounterManagerModeForScene（默认按场景名 99-CreateScene=Create / 否则=Game；
-//   可在 GameManager 勾选「使用自定义 CounterManager 模式」改为始终用 Inspector 里指定的 Create 或 Game），再 RefreshCountersForCurrentMode。
+// 【两种模式】GameMode（定义在 GameManager.cs）—— 由 GameManager.CurrentGameMode 持有；勿在 CounterManager 本地缓存副本。
+// - GameManager：SceneManager.sceneLoaded → ApplyCounterManagerModeForScene 写入 CurrentGameMode（默认按场景名 99-CreateScene=Create / 否则=Game；
+//   可勾选「使用自定义 GameMode」覆盖），再 RefreshCountersForCurrentMode。
+// - GameManager.Update 中的倒计时状态机仅在 CurrentGameMode == Game 时运行。
 //
 // - Create（创建）：可射线拾取区内柜台拖拽（Update）；可外部 BeginPlaceCounterFromExternal 拖临时体落地；
 //   松左键后 LateUpdate 会清空 selectedCounterForEdit（在 EndDrag 之后执行，不挡位姿写入）。
@@ -44,23 +45,13 @@ public class CounterSpawnEntry
     public Vector3 eulerAngles;
 }
 
-/// <summary>创建 = 关卡编辑式摆柜台；游戏 = 运行时用缓存布局生成。</summary>
-public enum CounterManagerMode
-{
-    Create,
-    Game
-}
-
 /// <summary>
 /// 柜台单例管理：列表与生成、创建区检测、与 BaseCounterControl 协同的射线拾取与选中状态。
-/// Create / Game 模式由 <see cref="GameManager"/> 在场景加载时写入（默认按场景名；可选 Inspector 自定义覆盖），本类只负责响应 <see cref="SetMode"/> 与 <see cref="RefreshCountersForCurrentMode"/>。
+/// Create / Game 由 <see cref="GameManager.CurrentGameMode"/>（<see cref="GameMode"/>）控制；场景加载后由 <see cref="GameManager"/> 调用 <see cref="RefreshCountersForCurrentMode"/>。
 /// </summary>
 public class CounterManager : MonoBehaviour
 {
     public static CounterManager Instance { get; private set; }
-
-    [Tooltip("运行时由 GameManager 按场景名设置（99-CreateScene=Create，其它=Game）；Inspector 默认值仅作编辑参考。")]
-    [SerializeField] private CounterManagerMode currentMode = CounterManagerMode.Create;
     [Tooltip("用于判断「在创建触发器范围内」：检测点是否落在此 Collider 的 bounds 内（建议用 BoxCollider / MeshCollider 且 Is Trigger）。")]
     [SerializeField] private Collider createModeZoneTrigger;
     [Tooltip("鼠标从屏幕射线检测柜台的可拾取距离。")]
@@ -96,7 +87,8 @@ public class CounterManager : MonoBehaviour
     /// <summary>为 true 时不在 SpawnCounter 等路径里回写 spawnLayout，避免 SpawnFromLayout 的 foreach 与改表冲突。</summary>
     private bool _suppressSpawnLayoutSync;
 
-    public CounterManagerMode CurrentMode => currentMode;
+    /// <summary>与 <see cref="GameManager.CurrentGameMode"/> 一致；无 GameManager 时视为 <see cref="GameMode.Create"/>。</summary>
+    public GameMode CurrentMode => ResolveGameMode();
     public IReadOnlyList<BaseCounter> Counters => counters;
     public BaseCounter SelectedCounterForEdit => selectedCounterForEdit;
 
@@ -129,7 +121,7 @@ public class CounterManager : MonoBehaviour
 
     private void Update()
     {
-        if (currentMode != CounterManagerMode.Create)
+        if (ResolveGameMode() != GameMode.Create)
             return;
 
         if (Mouse.current == null || !Mouse.current.leftButton.wasPressedThisFrame)
@@ -166,7 +158,7 @@ public class CounterManager : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (currentMode != CounterManagerMode.Create)
+        if (ResolveGameMode() != GameMode.Create)
             return;
 
         if (Mouse.current == null)
@@ -235,31 +227,28 @@ public class CounterManager : MonoBehaviour
         RebuildSpawnLayoutFromCountersCore();
     }
 
-    // --- 模式 ----------------------------------------------------------------
+    // --- 模式（由 GameManager.CurrentGameMode 驱动）-------------------------------------------
 
-    /// <summary>
-    /// 设置 Create / Game。正常流程下仅由 <see cref="GameManager"/> 在 <c>SceneManager.sceneLoaded</c> 中调用；改模式后通常应再调 <see cref="RefreshCountersForCurrentMode"/>。
-    /// </summary>
-    public void SetMode(CounterManagerMode mode)
+    private static GameMode ResolveGameMode()
     {
-        currentMode = mode;
+        return GameManager.Instance != null ? GameManager.Instance.CurrentGameMode : GameMode.Create;
     }
 
     public bool IsCreateMode()
     {
-        return currentMode == CounterManagerMode.Create;
+        return ResolveGameMode() == GameMode.Create;
     }
 
     public bool IsGameMode()
     {
-        return currentMode == CounterManagerMode.Game;
+        return ResolveGameMode() == GameMode.Game;
     }
 
     // --- 持久化 JSON（CounterJson）与场景柜台初始化 --------------------------------
 
     /// <summary>
-    /// 由 <see cref="GameManager"/> 在场景加载流程中于 <see cref="CounterManager.SetMode"/> 之后调用：按当前模式清空并重生柜台。
-    /// 游戏模式从 CounterLayouts 读取编号最大的 SceneNN.json；创建模式且 <c>spawnOnStart</c> 时从 <c>spawnLayout</c> 生成。
+    /// 由 <see cref="GameManager"/> 在写入 <see cref="GameManager.CurrentGameMode"/> 后调用：按当前 <see cref="GameMode"/> 清空并重生柜台。
+    /// <see cref="GameMode.Game"/> 时从 CounterLayouts 读取编号最大的 SceneNN.json；<see cref="GameMode.Create"/> 且 <c>spawnOnStart</c> 时从 <c>spawnLayout</c> 生成。
     /// </summary>
     public void RefreshCountersForCurrentMode()
     {

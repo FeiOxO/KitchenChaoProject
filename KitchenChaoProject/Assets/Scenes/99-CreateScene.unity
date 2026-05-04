@@ -352,8 +352,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ec56f4a63ea28ee4e994c8aa93e2a61c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  useCustomCounterManagerMode: 0
-  customCounterManagerMode: 1
+  useCustomGameMode: 1
+  customGameMode: 1
   player: {fileID: 1120338408}
   state: 0
   gamePlayingTimer: 120
@@ -971,7 +971,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b58d09a6f34b06740b4af51014382e1c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  currentMode: 1
   createModeZoneTrigger: {fileID: 407000802}
   counterPickRayDistance: 80
   counterPickLayers:

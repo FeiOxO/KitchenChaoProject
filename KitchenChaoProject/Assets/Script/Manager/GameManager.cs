@@ -4,6 +4,15 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
+/// <summary>
+/// 由 <see cref="GameManager"/> 持有：<see cref="GameMode.Create"/> = 建关编辑柜台；<see cref="GameMode.Game"/> = 游玩（读布局 JSON + 运行 GameManager 的倒计时状态机）。
+/// </summary>
+public enum GameMode
+{
+    Create,
+    Game
+}
+
 public class GameManager : MonoBehaviour
 {
     #region 单例模式
@@ -30,11 +39,14 @@ public class GameManager : MonoBehaviour
 
     private const string CreateSceneName = "99-CreateScene";
 
-    [Header("CounterManager 模式")]
-    [Tooltip("关闭：按场景名默认规则（见 ApplyCounterManagerModeForScene）。开启：始终使用下方「自定义模式」，忽略场景名。")]
-    [SerializeField] private bool useCustomCounterManagerMode;
-    [Tooltip("仅在「使用自定义 CounterManager 模式」开启时生效。")]
-    [SerializeField] private CounterManagerMode customCounterManagerMode = CounterManagerMode.Game;
+    [Header("GameMode")]
+    [Tooltip("关闭：按场景名默认规则（99-CreateScene=Create，否则=Game）。开启：始终使用下方「自定义 GameMode」，忽略场景名。")]
+    [SerializeField] private bool useCustomGameMode;
+    [Tooltip("仅在「使用自定义 GameMode」开启时生效。")]
+    [SerializeField] private GameMode customGameMode = GameMode.Game;
+
+    /// <summary>当前 Create / Game，由场景加载逻辑写入；<see cref="CounterManager"/> 等据此行为分支。</summary>
+    public GameMode CurrentGameMode { get; private set; } = GameMode.Game;
 
     public event EventHandler OnStateChanged;
     public event EventHandler OnGamePaused;
@@ -71,28 +83,28 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 场景加载后设置 <see cref="CounterManager"/> 模式并刷新柜台。
+    /// 场景加载后写入 <see cref="CurrentGameMode"/>，再刷新 <see cref="CounterManager"/> 柜台。
     /// <list type="bullet">
-    /// <item><description><c>useCustomCounterManagerMode == false</c>（默认）：当前场景名为 <c>99-CreateScene</c> → Create，否则 → Game。</description></item>
-    /// <item><description><c>useCustomCounterManagerMode == true</c>：使用 Inspector 中的 <c>customCounterManagerMode</c>。</description></item>
+    /// <item><description><c>useCustomGameMode == false</c>（默认）：当前场景名为 <c>99-CreateScene</c> → <see cref="GameMode.Create"/>，否则 → <see cref="GameMode.Game"/>。</description></item>
+    /// <item><description><c>useCustomGameMode == true</c>：使用 Inspector 中的 <c>customGameMode</c>。</description></item>
     /// </list>
     /// </summary>
     private void ApplyCounterManagerModeForScene(Scene _)
     {
-        CounterManager manager = FindObjectOfType<CounterManager>();
-        if (manager == null)
-            return;
-
-        if (useCustomCounterManagerMode)
-            manager.SetMode(customCounterManagerMode);
+        GameMode mode;
+        if (useCustomGameMode)
+            mode = customGameMode;
         else
         {
             string currentSceneName = SceneManager.GetActiveScene().name;
-            if (currentSceneName == CreateSceneName)
-                manager.SetMode(CounterManagerMode.Create);
-            else
-                manager.SetMode(CounterManagerMode.Game);
+            mode = currentSceneName == CreateSceneName ? GameMode.Create : GameMode.Game;
         }
+
+        CurrentGameMode = mode;
+
+        CounterManager manager = FindObjectOfType<CounterManager>();
+        if (manager == null)
+            return;
 
         manager.RefreshCountersForCurrentMode();
     }
@@ -104,6 +116,10 @@ public class GameManager : MonoBehaviour
 
     private void Update()
     {
+        // 仅「游玩」GameMode 下推进等待/倒计时/局内计时；建关 Create 不跑此状态机。
+        if (CurrentGameMode != GameMode.Game)
+            return;
+
         switch (state)
         {
             case State.WaitingToStart:
