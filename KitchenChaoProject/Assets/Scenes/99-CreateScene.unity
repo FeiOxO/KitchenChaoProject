@@ -122,7 +122,7 @@ NavMeshSettings:
     preserveTilesOutsideBounds: 0
     debug:
       m_Flags: 0
-  m_NavMeshData: {fileID: 23800000, guid: fe4c14d6560855b41b91fa86271a9f7a, type: 2}
+  m_NavMeshData: {fileID: 23800000, guid: 90de111170c97aa47a3014a8091adc3c, type: 2}
 --- !u!1001 &30841320
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -353,7 +353,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   useCustomGameMode: 1
-  customGameMode: 1
+  customGameMode: 0
   player: {fileID: 1120338408}
   state: 0
   gamePlayingTimer: 120
@@ -837,7 +837,7 @@ GameObject:
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 127
+  m_StaticEditorFlags: 2147483647
   m_IsActive: 1
 --- !u!64 &373013062
 MeshCollider:
@@ -920,7 +920,7 @@ Transform:
   m_GameObject: {fileID: 373013061}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -12.17, y: 0, z: -9.86}
+  m_LocalPosition: {x: -12, y: 0, z: -12}
   m_LocalScale: {x: 5, y: 5, z: 5}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -953,7 +953,7 @@ Transform:
   m_GameObject: {fileID: 407000799}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 1.5, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -972,7 +972,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   createModeZoneTrigger: {fileID: 407000802}
-  counterPickRayDistance: 80
+  counterPickRayDistance: 100
   counterPickLayers:
     serializedVersion: 2
     m_Bits: 4294967295
@@ -981,15 +981,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   counters: []
-  spawnLayout:
-  - prefab: {fileID: 8995401747019531762, guid: dceb756c3aaa99640b21259ad083669d,
-      type: 3}
-    position: {x: 0, y: 0, z: 0}
-    eulerAngles: {x: 0, y: 0, z: 0}
-  - prefab: {fileID: 1309572590075797582, guid: 1eec3cf360bd1914d94e8a8bdc812a50,
-      type: 3}
-    position: {x: 3, y: 0, z: 0}
-    eulerAngles: {x: 0, y: 0, z: 0}
+  spawnLayout: []
   spawnOnStart: 1
   gameplaySpawnCache: []
   dropdown: {fileID: 523764051}
@@ -1000,6 +992,11 @@ MonoBehaviour:
   - {fileID: 7760042296240792225, guid: 2a62761988f0ec344bb72eac364116bd, type: 3}
   - {fileID: 8926059448276364878, guid: 1b8b245bd3da1b34ab7f064af0609009, type: 3}
   - {fileID: 1309572590075797582, guid: 1eec3cf360bd1914d94e8a8bdc812a50, type: 3}
+  - {fileID: 3132433749126203807, guid: e42d265d54580f744a8b5a79cb3dc858, type: 3}
+  - {fileID: 1153250990349702247, guid: 46825eaa9757c2646a6f683510e86385, type: 3}
+  - {fileID: 1153250990349702247, guid: 015845185b448de40be1e42912519bc5, type: 3}
+  - {fileID: 1664695309626992405, guid: 8d66db0e3c9f7e14ea3d900213421060, type: 3}
+  - {fileID: 1664695309626992405, guid: 13c3877f5a76e3249914eff9d5d8b53d, type: 3}
   selectedCounterForEdit: {fileID: 0}
 --- !u!65 &407000802
 BoxCollider:
@@ -1020,7 +1017,7 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 19, y: 1, z: 19}
+  m_Size: {x: 25.5, y: 1, z: 25.5}
   m_Center: {x: 0, y: 0, z: 0}
 --- !u!1 &410087039
 GameObject:

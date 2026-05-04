@@ -6,17 +6,19 @@ public class BaseCounter : KitchenObjectHolder
 {
     [SerializeField] private GameObject selectCounter;
 
-    private BaseCounter spawnSourcePrefab;
+    /// <summary>生成时绑定的「预制体根」；未绑定时 <see cref="GetSpawnSourceGameObject"/> 退回 <see cref="GameObject"/> 自身。</summary>
+    private GameObject spawnSourcePrefabRoot;
 
-    /// <summary>由 CounterManager 生成时绑定，用于缓存/重建布局。</summary>
+    /// <summary>由 CounterManager 在 Instantiate 后调用，保存预制体根物体（与传入的 <paramref name="prefab"/> 为同一套资源）。</summary>
     public void BindSpawnSourcePrefab(BaseCounter prefab)
     {
-        spawnSourcePrefab = prefab;
+        spawnSourcePrefabRoot = prefab != null ? prefab.gameObject : null;
     }
 
-    public BaseCounter GetSpawnSourcePrefab()
+    /// <summary>用于布局/缓存：有绑定则返回预制体根 <see cref="GameObject"/>，否则返回本实例的 <c>gameObject</c>。</summary>
+    public GameObject GetSpawnSourceGameObject()
     {
-        return spawnSourcePrefab;
+        return spawnSourcePrefabRoot != null ? spawnSourcePrefabRoot : gameObject;
     }
     
     virtual public void Interact(PlayerController player)

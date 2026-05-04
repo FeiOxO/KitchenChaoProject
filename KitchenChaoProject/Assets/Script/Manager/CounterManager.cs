@@ -20,7 +20,7 @@ using UnityEngine.InputSystem;
 //   gameplaySpawnCache 与 CacheCurrentCountersToGameplayCache / LoadCountersFromGameplayCache 为内存快照重生（当前未接线，可按需在类内调用）。
 //
 // 【数据】
-// - counters：当前登记在管理器下的柜台实例列表；内部 SpawnCounter 会 Instantiate、BindSpawnSourcePrefab、加入列表。
+// - counters：当前登记在管理器下的柜台实例列表；内部 SpawnCounter 会 Instantiate、BindSpawnSourcePrefab（存预制体根 GameObject）、加入列表。
 // - spawnLayout：关卡布局表；spawnOnStart 时 SpawnFromLayout 读取它生成实例。编辑柜台后由 RebuildSpawnLayoutFromCounters
 //   根据当前 counters 回写（与场景内实例一致）；批量 SpawnFromLayout 时用 _suppressSpawnLayoutSync 避免 foreach 中改表。
 // - gameplaySpawnCache：游戏用布局快照（内存）；持久化布局见 CounterJson（编辑器：Assets/CounterLayouts；正式包：persistentDataPath/CounterLayouts）+ SceneNN.json。
@@ -194,7 +194,17 @@ public class CounterManager : MonoBehaviour
             TryRebuildSpawnLayoutFromCounters();
     }
 
-    /// <summary>用当前 counters 覆盖 spawnLayout（需柜台已 BindSpawnSourcePrefab）。</summary>
+    /// <summary>从柜台解析用于 Instantiate / JSON 的模板：<see cref="BaseCounter.GetSpawnSourceGameObject"/> 上的 <see cref="BaseCounter"/>。</summary>
+    private static BaseCounter GetSpawnTemplateFromCounter(BaseCounter c)
+    {
+        if (c == null)
+            return null;
+
+        GameObject root = c.GetSpawnSourceGameObject();
+        return root != null ? root.GetComponent<BaseCounter>() : null;
+    }
+
+    /// <summary>用当前 counters 覆盖 spawnLayout（需柜台已 BindSpawnSourcePrefab 或根物体上可解析到 <see cref="BaseCounter"/>）。</summary>
     private void RebuildSpawnLayoutFromCountersCore()
     {
         spawnLayout.Clear();
@@ -203,7 +213,7 @@ public class CounterManager : MonoBehaviour
             if (c == null)
                 continue;
 
-            BaseCounter prefab = c.GetSpawnSourcePrefab();
+            BaseCounter prefab = GetSpawnTemplateFromCounter(c);
             if (prefab == null)
             {
                 Debug.LogWarning($"CounterManager: 柜台 {c.name} 无源预制体，已跳过写入 spawnLayout。");
@@ -440,7 +450,7 @@ public class CounterManager : MonoBehaviour
 
     private BaseCounter GetPrefabByCounterId(int counterId)
     {
-        if (counterId < 1 || counterId > 6)
+        if (counterId < 1 || counterId > counterPrefabsByCounterId.Length + 1)
             return null;
 
         int i = counterId - 1;
@@ -455,7 +465,7 @@ public class CounterManager : MonoBehaviour
         if (prefabTemplate == null || counterPrefabsByCounterId == null)
             return -1;
 
-        for (int i = 0; i < counterPrefabsByCounterId.Length && i < 6; i++)
+        for (int i = 0; i < counterPrefabsByCounterId.Length; i++)
         {
             BaseCounter p = counterPrefabsByCounterId[i];
             if (p != null && p == prefabTemplate)
@@ -463,7 +473,7 @@ public class CounterManager : MonoBehaviour
         }
 
         string stripped = prefabTemplate.name.Replace("(Clone)", string.Empty).Trim();
-        for (int i = 0; i < counterPrefabsByCounterId.Length && i < 6; i++)
+        for (int i = 0; i < counterPrefabsByCounterId.Length; i++)
         {
             BaseCounter p = counterPrefabsByCounterId[i];
             if (p == null)
@@ -489,7 +499,7 @@ public class CounterManager : MonoBehaviour
             if (c == null)
                 continue;
 
-            BaseCounter template = c.GetSpawnSourcePrefab();
+            BaseCounter template = GetSpawnTemplateFromCounter(c);
             if (template == null)
             {
                 Debug.LogWarning($"CounterManager: 柜台 {c.name} 未绑定源预制体，已跳过缓存。");

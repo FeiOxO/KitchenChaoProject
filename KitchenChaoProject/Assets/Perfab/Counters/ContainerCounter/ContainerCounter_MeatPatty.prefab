@@ -83,7 +83,11 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 1422083815079669333, guid: e42d265d54580f744a8b5a79cb3dc858,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 8461535197557313558}
   m_SourcePrefab: {fileID: 100100000, guid: e42d265d54580f744a8b5a79cb3dc858, type: 3}
 --- !u!114 &3119289174289815313 stripped
 MonoBehaviour:
@@ -97,3 +101,33 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8d03311343baf92428ed440e85d7a8fc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!1 &3449420621613121759 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 1422083815079669333, guid: e42d265d54580f744a8b5a79cb3dc858,
+    type: 3}
+  m_PrefabInstance: {fileID: 4351194630282260106}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &8461535197557313558
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3449420621613121759}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1ff4d9f56a8f8784891ef674495717ae, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  placementPlaneY: 0
+  positionSnapGrid: 1.5
+  releaseOverlapRadius: 1
+  releaseCheckLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  onCaseExternalDragStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  onCaseInZoneDragStarted:
+    m_PersistentCalls:
+      m_Calls: []

@@ -385,6 +385,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ec56f4a63ea28ee4e994c8aa93e2a61c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  useCustomGameMode: 0
+  customGameMode: 1
   player: {fileID: 1120338408}
   state: 0
   gamePlayingTimer: 120
@@ -2460,7 +2462,7 @@ GameObject:
   m_Component:
   - component: {fileID: 407000800}
   m_Layer: 0
-  m_Name: Counter
+  m_Name: CounterManager
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -2475,7 +2477,7 @@ Transform:
   m_GameObject: {fileID: 407000799}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 1.5, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -7059,7 +7061,7 @@ PrefabInstance:
     - target: {fileID: 5033386671154044765, guid: 2a62761988f0ec344bb72eac364116bd,
         type: 3}
       propertyPath: m_Name
-      value: PlatesCounter (1)
+      value: PlatesCounter
       objectReference: {fileID: 0}
     - target: {fileID: 5033386671154044765, guid: 2a62761988f0ec344bb72eac364116bd,
         type: 3}
