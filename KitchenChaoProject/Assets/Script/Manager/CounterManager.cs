@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -17,7 +18,7 @@ using UnityEngine.InputSystem;
 // - counters：当前登记在管理器下的柜台实例列表；SpawnCounter 会 Instantiate、BindSpawnSourcePrefab、加入列表。
 // - spawnLayout：关卡布局表；spawnOnStart 时 SpawnFromLayout 读取它生成实例。编辑柜台后由 RebuildSpawnLayoutFromCounters
 //   根据当前 counters 回写（与场景内实例一致）；批量 SpawnFromLayout 时用 _suppressSpawnLayoutSync 避免 foreach 中改表。
-// - gameplaySpawnCache：游戏用布局快照，由 CacheCurrentCountersToGameplayCache 从 counters 填充。
+// - gameplaySpawnCache：游戏用布局快照（内存）；持久化布局见 CounterJson（编辑器：Assets/CounterLayouts；正式包：persistentDataPath/CounterLayouts）+ SceneNN.json。
 // - selectedCounterForEdit：区内拖拽时「当前编辑目标」，供 UpdateSelectedCounterPose 使用。
 //
 // 【创建区与放下检测】
@@ -68,9 +69,13 @@ public class CounterManager : MonoBehaviour
     [SerializeField] private List<CounterSpawnEntry> spawnLayout = new List<CounterSpawnEntry>();
     [SerializeField] private bool spawnOnStart = true;
 
-    [Header("游戏模式缓存")]
+    [Header("游戏模式缓存（内存）")]
     [Tooltip("进入游戏模式时用于生成柜台的缓存数据（可由 CacheCurrentCountersToGameplayCache 填充）。")]
     [SerializeField] private List<CounterSpawnEntry> gameplaySpawnCache = new List<CounterSpawnEntry>();
+
+    [Header("JSON 持久化：counterId 与预制体（1=Clear … 6=Trash，顺序固定）")]
+    [Tooltip("下标 0 → counterId 1 ClearCounter；…；下标 5 → counterId 6 TrashCounter。保存/加载 JSON 依赖此映射。")]
+    [SerializeField] private BaseCounter[] counterPrefabsByCounterId = new BaseCounter[6];
 
     [Header("创建模式：当前选中的柜台")]
     [SerializeField] private BaseCounter selectedCounterForEdit;
@@ -95,12 +100,6 @@ public class CounterManager : MonoBehaviour
         }
 
         Instance = this;
-    }
-
-    private void Start()
-    {
-        if (spawnOnStart)
-            SpawnFromLayout();
     }
 
     // --- 创建模式：左键按下射线 → 区内柜台开始拖拽（交给 BaseCounterControl） ----------------
@@ -228,6 +227,163 @@ public class CounterManager : MonoBehaviour
     public bool IsGameMode()
     {
         return currentMode == CounterManagerMode.Game;
+    }
+
+    // --- 持久化 JSON（CounterJson）与场景柜台初始化 --------------------------------
+
+    /// <summary>
+    /// 由 GameManager 在设置 Create/Game 模式后调用：清空已有柜台，再按模式从 spawnLayout 或 JSON 重新生成。
+    /// 游戏模式从 CounterLayouts 读取编号最大的 SceneNN.json（编辑器为项目内 Assets/CounterLayouts）。
+    /// </summary>
+    public void RefreshCountersForCurrentMode()
+    {
+        Debug.Log("RefreshCountersForCurrentMode");
+        if (IsGameMode()){
+            ClearSpawnedCounters();
+            LoadCountersFromPersistentJsonForCurrentScene(clearExistingFirst: false);
+        }
+        else if (spawnOnStart && IsCreateMode())
+            SpawnFromLayout();
+    }
+
+    /// <summary>
+    /// 供 UI Button 绑定：将当前 <c>spawnLayout</c>（会先按 counters 重建）写入 SceneNN.json。
+    /// </summary>
+    public void UIButtonSaveCurrentCounterLayoutToJson()
+    {
+        if (!IsCreateMode())
+            Debug.LogWarning("CounterManager: 当前非创建模式，仍会将当前布局写入 JSON。");
+
+        RebuildSpawnLayoutFromCountersCore();
+        CounterLayoutJsonRoot root = BuildJsonRootFromSpawnLayout();
+        string fileName = GetCurrentSceneLayoutFileName();
+        if (CounterJson.SaveLayout(fileName, root))
+            Debug.Log($"柜台布局已保存: {Path.Combine(CounterJson.GetLayoutDirectoryPath(false), fileName)}");
+    }
+
+    /// <summary>CounterLayouts 目录下是否已有至少一个 SceneNN.json（供 UI 显示/灰显）。</summary>
+    public bool HasSavedLayoutFileForCurrentScene()
+    {
+        return CounterJson.CountSceneLayoutJsonFiles() > 0;
+    }
+
+    /// <summary>布局 JSON 根目录（编辑器为项目内 Assets/CounterLayouts；正式包为 persistentDataPath/CounterLayouts）。</summary>
+    public static string GetCounterLayoutDirectory()
+    {
+        return CounterJson.GetLayoutDirectoryPath(false);
+    }
+
+    /// <summary>
+    /// 下一次保存应使用的 JSON 文件名：<c>Scene(当前 CounterLayouts 下符合 SceneNN.json 规则的文件数量 + 1).json</c>。
+    /// 例如目录为空 → Scene01；已有 Scene01.json → Scene02。
+    /// </summary>
+    public string GetCurrentSceneLayoutFileName()
+    {
+        return CounterJson.GetNextSceneLayoutFileName();
+    }
+
+    /// <summary>
+    /// 游戏模式：从 CounterJson 布局目录读取 SceneNN.json 并生成柜台。
+    /// </summary>
+    /// <param name="clearExistingFirst">为 true 时先清空列表并销毁已有柜台（一般已由 RefreshCountersForCurrentMode 处理）。</param>
+    public void LoadCountersFromPersistentJsonForCurrentScene(bool clearExistingFirst = true)
+    {
+        if (clearExistingFirst)
+            ClearSpawnedCounters();
+
+        if (!CounterJson.TryGetLatestSceneLayoutFileName(out string fileName) ||
+            !CounterJson.TryLoadLayout(fileName, out CounterLayoutJsonRoot root))
+        {
+            Debug.LogError(
+                $"CounterManager 游戏模式：CounterLayouts 下没有可加载的 SceneNN.json。请先在建关场景保存布局（Button 调用 UIButtonSaveCurrentCounterLayoutToJson）。目录：{CounterJson.GetLayoutDirectoryPath(false)}");
+            return;
+        }
+
+        _suppressSpawnLayoutSync = true;
+        try
+        {
+            foreach (CounterLayoutJsonEntry e in root.entries)
+            {
+                BaseCounter prefab = GetPrefabByCounterId(e.counterId);
+                if (prefab == null)
+                {
+                    Debug.LogWarning($"CounterManager: 未知的 counterId={e.counterId}，已跳过。");
+                    continue;
+                }
+
+                SpawnCounter(prefab, e.position, e.rotation);
+            }
+        }
+        finally
+        {
+            _suppressSpawnLayoutSync = false;
+        }
+
+        RebuildSpawnLayoutFromCountersCore();
+    }
+
+    private CounterLayoutJsonRoot BuildJsonRootFromSpawnLayout()
+    {
+        var list = new List<CounterLayoutJsonEntry>();
+        foreach (CounterSpawnEntry entry in spawnLayout)
+        {
+            if (entry == null || entry.prefab == null)
+                continue;
+
+            int id = GetCounterIdForPrefab(entry.prefab);
+            if (id < 0)
+            {
+                Debug.LogWarning($"CounterManager: 无法为预制体 {entry.prefab.name} 映射 counterId（1–6），已跳过写入 JSON。");
+                continue;
+            }
+
+            list.Add(new CounterLayoutJsonEntry
+            {
+                counterId = id,
+                position = entry.position,
+                rotation = entry.eulerAngles
+            });
+        }
+
+        return new CounterLayoutJsonRoot { entries = list.ToArray() };
+    }
+
+    private BaseCounter GetPrefabByCounterId(int counterId)
+    {
+        if (counterId < 1 || counterId > 6)
+            return null;
+
+        int i = counterId - 1;
+        if (counterPrefabsByCounterId == null || i >= counterPrefabsByCounterId.Length)
+            return null;
+
+        return counterPrefabsByCounterId[i];
+    }
+
+    private int GetCounterIdForPrefab(BaseCounter prefabTemplate)
+    {
+        if (prefabTemplate == null || counterPrefabsByCounterId == null)
+            return -1;
+
+        for (int i = 0; i < counterPrefabsByCounterId.Length && i < 6; i++)
+        {
+            BaseCounter p = counterPrefabsByCounterId[i];
+            if (p != null && p == prefabTemplate)
+                return i + 1;
+        }
+
+        string stripped = prefabTemplate.name.Replace("(Clone)", string.Empty).Trim();
+        for (int i = 0; i < counterPrefabsByCounterId.Length && i < 6; i++)
+        {
+            BaseCounter p = counterPrefabsByCounterId[i];
+            if (p == null)
+                continue;
+
+            if (p.name == stripped || stripped.StartsWith(p.name, System.StringComparison.Ordinal))
+                return i + 1;
+        }
+
+        return -1;
     }
 
     // --- 游戏模式：缓存当前布局 → 按缓存重生 ----------------------------------------

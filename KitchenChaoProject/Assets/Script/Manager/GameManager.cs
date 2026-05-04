@@ -51,7 +51,6 @@ public class GameManager : MonoBehaviour
     {
         TurnToWaitingToStart();
         GameInput.Instance.OnPauseAction += GameInput_OnPauseAction;
-        ApplyCounterManagerModeForScene(SceneManager.GetActiveScene());
     }
 
     private void OnDestroy()
@@ -75,6 +74,8 @@ public class GameManager : MonoBehaviour
             manager.SetMode(CounterManagerMode.Create);
         else
             manager.SetMode(CounterManagerMode.Game);
+
+        manager.RefreshCountersForCurrentMode();
     }
 
     private void GameInput_OnPauseAction(object sender, EventArgs e)
