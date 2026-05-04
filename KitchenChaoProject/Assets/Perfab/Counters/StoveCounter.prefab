@@ -372,6 +372,10 @@ PrefabInstance:
         type: 3}
       insertIndex: -1
       addedObject: {fileID: 8926059448276364878}
+    - targetCorrespondingSourceObject: {fileID: 6226434553450390338, guid: 48de53f0c7fb11b4780af0a659be5546,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 982553689233582277}
   m_SourcePrefab: {fileID: 100100000, guid: 48de53f0c7fb11b4780af0a659be5546, type: 3}
 --- !u!4 &1076493714561325605 stripped
 Transform:
@@ -404,6 +408,29 @@ MonoBehaviour:
   stoveCounterVisual: {fileID: 3665450679206585949}
   progressBarUI: {fileID: 9095112871908918733}
   audioSource: {fileID: 4327196857009039618}
+--- !u!114 &982553689233582277
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6435755562635696010}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1ff4d9f56a8f8784891ef674495717ae, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  placementPlaneY: 0
+  releaseOverlapRadius: 1
+  releaseCheckLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  onCaseExternalDragStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  onCaseInZoneDragStarted:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!1001 &2667206287584863365
 PrefabInstance:
   m_ObjectHideFlags: 0

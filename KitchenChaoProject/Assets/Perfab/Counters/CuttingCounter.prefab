@@ -350,6 +350,10 @@ PrefabInstance:
         type: 3}
       insertIndex: -1
       addedObject: {fileID: 8524279830286726198}
+    - targetCorrespondingSourceObject: {fileID: 6226434553450390338, guid: 48de53f0c7fb11b4780af0a659be5546,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: -6284302382685262334}
   m_SourcePrefab: {fileID: 100100000, guid: 48de53f0c7fb11b4780af0a659be5546, type: 3}
 --- !u!1 &307331680774843254 stripped
 GameObject:
@@ -374,6 +378,29 @@ MonoBehaviour:
   cuttingRecipeList: {fileID: 11400000, guid: c04e97bb4c562c64b85627fc3c99bfd4, type: 2}
   progressBarUI: {fileID: 8927882688087687625}
   cuttingCounterVisual: {fileID: 5630527535253691898}
+--- !u!114 &-6284302382685262334
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 307331680774843254}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1ff4d9f56a8f8784891ef674495717ae, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  placementPlaneY: 0
+  releaseOverlapRadius: 1
+  releaseCheckLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  onCaseExternalDragStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  onCaseInZoneDragStarted:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!4 &6044886555157702361 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 128530704909446893, guid: 48de53f0c7fb11b4780af0a659be5546,

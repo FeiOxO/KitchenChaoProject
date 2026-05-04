@@ -9,6 +9,8 @@ public class GamePauseUI : MonoBehaviour
     [SerializeField] private GameObject uiParent;
     [SerializeField] private Button resumeBtn;
     [SerializeField] private Button meunBtn;
+    [SerializeField] private Button settingBtn;
+    [SerializeField] private GameObject settingPanel;
     private void Start()
     {
         Hide();
@@ -22,6 +24,11 @@ public class GamePauseUI : MonoBehaviour
         meunBtn.onClick.AddListener(() =>
         {
             Loader.Load(Loader.Scene.GameMenuScene);
+        });
+
+        settingBtn.onClick.AddListener(() =>
+        {
+            settingPanel.SetActive(!settingPanel.activeInHierarchy);
         });
     }
 

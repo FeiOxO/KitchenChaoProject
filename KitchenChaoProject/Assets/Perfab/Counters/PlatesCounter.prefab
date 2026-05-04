@@ -114,6 +114,10 @@ PrefabInstance:
         type: 3}
       insertIndex: -1
       addedObject: {fileID: 7760042296240792225}
+    - targetCorrespondingSourceObject: {fileID: 6226434553450390338, guid: 48de53f0c7fb11b4780af0a659be5546,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 8292864851578250622}
   m_SourcePrefab: {fileID: 100100000, guid: 48de53f0c7fb11b4780af0a659be5546, type: 3}
 --- !u!4 &1331431890706092786 stripped
 Transform:
@@ -144,6 +148,29 @@ MonoBehaviour:
   plateSO: {fileID: 11400000, guid: d730305986a8ebe44ac6a754d014c1ba, type: 2}
   spawnRate: 3
   plateCountMAX: 5
+--- !u!114 &8292864851578250622
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5033386671154044765}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1ff4d9f56a8f8784891ef674495717ae, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  placementPlaneY: 0
+  releaseOverlapRadius: 1
+  releaseCheckLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  onCaseExternalDragStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  onCaseInZoneDragStarted:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!1001 &1764310810546692943
 PrefabInstance:
   m_ObjectHideFlags: 0

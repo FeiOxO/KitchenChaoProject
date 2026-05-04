@@ -43,7 +43,7 @@ public class GameInput : MonoBehaviour
 
     private void Pause_Performed(InputAction.CallbackContext context)
     {
-        print("asd");
+        // print("asd");
         OnPauseAction?.Invoke(this, EventArgs.Empty);
     }
 

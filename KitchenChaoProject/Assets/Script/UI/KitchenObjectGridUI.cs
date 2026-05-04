@@ -16,4 +16,14 @@ public class KitchenObjectGridUI : MonoBehaviour
         KitchenObjectIcanUI _kitchenObjectIcanUI = Instantiate(iconTemplateUI, transform);
         _kitchenObjectIcanUI.Show(kitchenObjectSO.sprite);
     }
+
+    public void HideKitchenObjectUI()
+    {
+        var items = GetComponentsInChildren<KitchenObjectIcanUI>();
+        foreach(var item in items)
+        {
+            Debug.Log(item);
+            Destroy(item.gameObject);
+        }
+    }    
 }

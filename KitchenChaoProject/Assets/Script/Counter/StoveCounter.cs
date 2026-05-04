@@ -19,6 +19,16 @@ public class StoveCounter : BaseCounter
     private StoveState state = StoveState.Idle;
     private FryingRecipeSO fryingRecipe;
     private float fryingTimer = 0;
+    void Start()
+    {
+        audioSource.volume = GameData.soundVolumeValue;
+        GameData.OnSoundVolumeValueChanged += SetVolume;
+    }
+
+    private void SetVolume(float value)
+    {
+        audioSource.volume = value;
+    }
 
     public override void Interact(PlayerController player)
     {
@@ -126,5 +136,10 @@ public class StoveCounter : BaseCounter
         progressBarUI.Hide();
         stoveCounterVisual.HideStoveEffect();
         audioSource.Pause();
+    }
+
+    void OnDestroy()
+    {
+        GameData.OnSoundVolumeValueChanged -= SetVolume;
     }
 }

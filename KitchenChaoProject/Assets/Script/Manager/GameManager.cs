@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class GameManager : MonoBehaviour
 {
@@ -21,9 +22,13 @@ public class GameManager : MonoBehaviour
                 return;
             }
         }
+
+        SceneManager.sceneLoaded += OnSceneLoaded;
         // DontDestroyOnLoad(gameObject);
     }
     #endregion
+
+    private const string CreateSceneName = "99-CreateScene";
     public event EventHandler OnStateChanged;
     public event EventHandler OnGamePaused;
     public event EventHandler OnGameUnpaused;
@@ -39,13 +44,37 @@ public class GameManager : MonoBehaviour
     public State state = State.WaitingToStart;
     private float waitingToStartTimer = 1;
     private float countDownToStartTimer = 3;
-    private float gamePlayingTimer = 10;
+    [SerializeField]private float gamePlayingTimer = 300;
     private bool isGamePause = false;
 
     private void Start()
     {
         TurnToWaitingToStart();
         GameInput.Instance.OnPauseAction += GameInput_OnPauseAction;
+        ApplyCounterManagerModeForScene(SceneManager.GetActiveScene());
+    }
+
+    private void OnDestroy()
+    {
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+    }
+
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        ApplyCounterManagerModeForScene(scene);
+    }
+
+    private static void ApplyCounterManagerModeForScene(Scene _)
+    {
+        CounterManager manager = FindObjectOfType<CounterManager>();
+        if (manager == null)
+            return;
+
+        string currentSceneName = SceneManager.GetActiveScene().name;
+        if (currentSceneName == CreateSceneName)
+            manager.SetMode(CounterManagerMode.Create);
+        else
+            manager.SetMode(CounterManagerMode.Game);
     }
 
     private void GameInput_OnPauseAction(object sender, EventArgs e)
@@ -143,6 +172,11 @@ public class GameManager : MonoBehaviour
         return countDownToStartTimer;
     }
 
+    public float GetGamePlayingTimer()
+    {
+        return gamePlayingTimer;
+    }
+
     public void ToggleGame()
     {
         isGamePause = !isGamePause;
@@ -157,4 +191,6 @@ public class GameManager : MonoBehaviour
             OnGameUnpaused?.Invoke(this, EventArgs.Empty);
         }
     }
+
+
 }

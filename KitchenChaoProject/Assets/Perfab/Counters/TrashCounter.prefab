@@ -263,6 +263,10 @@ PrefabInstance:
         type: 3}
       insertIndex: -1
       addedObject: {fileID: 1309572590075797582}
+    - targetCorrespondingSourceObject: {fileID: 6226434553450390338, guid: 48de53f0c7fb11b4780af0a659be5546,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: -7554963069217676023}
   m_SourcePrefab: {fileID: 100100000, guid: 48de53f0c7fb11b4780af0a659be5546, type: 3}
 --- !u!1 &1767465349835945868 stripped
 GameObject:
@@ -284,6 +288,29 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   HoldPoint: {fileID: 0}
   selectCounter: {fileID: 2104039887430416128}
+--- !u!114 &-7554963069217676023
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1767465349835945868}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1ff4d9f56a8f8784891ef674495717ae, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  placementPlaneY: 0
+  releaseOverlapRadius: 1
+  releaseCheckLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  onCaseExternalDragStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  onCaseInZoneDragStarted:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!4 &5703616090319567395 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 128530704909446893, guid: 48de53f0c7fb11b4780af0a659be5546,

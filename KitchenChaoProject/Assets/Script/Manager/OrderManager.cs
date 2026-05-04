@@ -35,7 +35,7 @@ public class OrderManager : MonoBehaviour
     [SerializeField] private int orderMAXCount = 5;
     [SerializeField] private float orderRate = 2;
 
-    private List<RecipeSO> orderRecipeSOList = new List<RecipeSO>();
+    [SerializeField] private List<RecipeSO> orderRecipeSOList = new List<RecipeSO>();
 
     private int orderCount = 0;
     private int successDeliveryCount = 0;
@@ -58,7 +58,6 @@ public class OrderManager : MonoBehaviour
 
     private void Update()
     {
-
         if (isStartOrder)
         {
             if (orderMAXCount <= orderCount) return;
@@ -72,7 +71,10 @@ public class OrderManager : MonoBehaviour
         if (orderTimer >= orderRate)
         {
             orderTimer = 0;
-            OrderANewRecipe();
+            if (GuestManager.Instance.GetEmptyDeliveryCounter())
+            {
+                OrderANewRecipe();
+            }
         }
     }
 
@@ -81,6 +83,7 @@ public class OrderManager : MonoBehaviour
         orderCount++;
         int index = UnityEngine.Random.Range(0, recipleSOList.recipeSOList.Count);
         orderRecipeSOList.Add(recipleSOList.recipeSOList[index]);
+        GuestManager.Instance.GuestGetOrder();
         OnRecipeSpawned?.Invoke(this, EventArgs.Empty);
     }
 
@@ -95,6 +98,7 @@ public class OrderManager : MonoBehaviour
                 break;
             }
         }
+        
         if (correctRecipe == null)
         {
             OnRecipeFailed?.Invoke(this, EventArgs.Empty);
@@ -111,7 +115,7 @@ public class OrderManager : MonoBehaviour
         OnRecipeSpawned?.Invoke(this, EventArgs.Empty);
     }
 
-    private bool IsCorrect(RecipeSO _recipe, PlateKitchenObject _plateKitchenObject)
+    public static bool IsCorrect(RecipeSO _recipe, PlateKitchenObject _plateKitchenObject)
     {
         List<KitchenObjectSO> list1 = _recipe.kitchenObjectSOList;
         List<KitchenObjectSO> list2 = _plateKitchenObject.GetKitchenObjectSOLIst();
