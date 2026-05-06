@@ -44,6 +44,11 @@ PrefabInstance:
       propertyPath: m_Name
       value: ProgressBar
       objectReference: {fileID: 0}
+    - target: {fileID: 3764701468661580121, guid: 24d366ca7a2d1ad4e967786a29c5c6af,
+        type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 8823369667583353830, guid: 24d366ca7a2d1ad4e967786a29c5c6af,
         type: 3}
       propertyPath: m_Pivot.x
@@ -179,6 +184,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Name
       value: CuttingCounter_Visual
+      objectReference: {fileID: 0}
+    - target: {fileID: 4589716710238282922, guid: d72bee846803d074784ffb8f64e993ca,
+        type: 3}
+      propertyPath: m_IsActive
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 4589716710238282923, guid: d72bee846803d074784ffb8f64e993ca,
         type: 3}
@@ -391,6 +401,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   placementPlaneY: 0
+  positionSnapGrid: 1.5
   releaseOverlapRadius: 1
   releaseCheckLayers:
     serializedVersion: 2

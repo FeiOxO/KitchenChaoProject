@@ -43,8 +43,10 @@ public class SoundManager : MonoBehaviour
         mainCam = Camera.main;
         if(previousScene.name != "0-GameMenu" && previousScene.name != "1-LoadScene")
         {
-            OrderManager.Instance.OnRecipeSuccessed += OrderManager_OnRecipeSuccessed;
-            OrderManager.Instance.OnRecipeFailed += OrderManager_OnRecipeFailed;
+            if(OrderManager.Instance){
+                OrderManager.Instance.OnRecipeSuccessed += OrderManager_OnRecipeSuccessed;
+                OrderManager.Instance.OnRecipeFailed += OrderManager_OnRecipeFailed;
+            }
             CuttingCounter.OnRecipeCut += CuttingCounter_OnRecipeCut;
             KitchenObjectHolder.OnDrop += KitchenObjectHolder_OnDrop;
             KitchenObjectHolder.OnPickup += KitchenObjectHolder_OnPickup;
@@ -56,8 +58,10 @@ public class SoundManager : MonoBehaviour
     {
         if(scene.name != "0-GameMenu" && scene.name != "1-LoadScene")
         {
-            OrderManager.Instance.OnRecipeSuccessed -= OrderManager_OnRecipeSuccessed;
-            OrderManager.Instance.OnRecipeFailed -= OrderManager_OnRecipeFailed;
+            if(OrderManager.Instance){
+                OrderManager.Instance.OnRecipeSuccessed -= OrderManager_OnRecipeSuccessed;
+                OrderManager.Instance.OnRecipeFailed -= OrderManager_OnRecipeFailed;
+            }
             CuttingCounter.OnRecipeCut -= CuttingCounter_OnRecipeCut;
             KitchenObjectHolder.OnDrop -= KitchenObjectHolder_OnDrop;
             KitchenObjectHolder.OnPickup -= KitchenObjectHolder_OnPickup;
